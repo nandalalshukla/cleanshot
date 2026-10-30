@@ -10,10 +10,18 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .framing import Alignment
 from .presets import PresetId, get_preset
+from .scene import SceneId
 from .segmentation import SegmentationModel
 from .shadow import ShadowStyle
 
 HEX_COLOR = re.compile(r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+class BackgroundMode(StrEnum):
+    COLOR = "color"
+    """Solid white or brand colour."""
+    SCENE = "scene"
+    """Generated lifestyle scene."""
 
 
 class OutputFormat(StrEnum):
@@ -44,6 +52,9 @@ class RenderSpec:
     output_format: OutputFormat
     shadow: ShadowStyle = ShadowStyle.GROUND
     shadow_opacity: float = 0.35
+    background_mode: BackgroundMode = BackgroundMode.COLOR
+    scene: SceneId = SceneId.STUDIO
+    scene_prompt: str | None = None
 
     @property
     def filename_suffix(self) -> str:
@@ -71,10 +82,25 @@ class ProcessOptions(BaseModel):
     auto_color: bool = Field(True, description="White balance, levels and exposure fix-up")
     color_strength: float = Field(0.8, ge=0.0, le=1.0)
 
+    background_mode: BackgroundMode = BackgroundMode.COLOR
+    scene: SceneId = SceneId.STUDIO
+    scene_prompt: str | None = Field(
+        None, max_length=200, description="Describe the scene (used with scene='custom')"
+    )
+    scene_seed: int | None = Field(
+        None, ge=0, le=2**31 - 1, description="Fix to reproduce a scene; default is per batch"
+    )
+
     @field_validator("presets")
     @classmethod
     def _unique(cls, v: list[PresetId]) -> list[PresetId]:
         return list(dict.fromkeys(v))
+
+    @field_validator("scene_prompt")
+    @classmethod
+    def _prompt(cls, v: str | None) -> str | None:
+        v = " ".join(v.split()) if v else None
+        return v or None
 
     @field_validator("background_color")
     @classmethod
@@ -86,17 +112,23 @@ class ProcessOptions(BaseModel):
         for preset_id in self.presets:
             p = get_preset(preset_id)
             custom = preset_id is PresetId.CUSTOM
+            scene_mode = self.background_mode is BackgroundMode.SCENE
+            # In a scene the product should stand on the surface, not float mid-frame.
+            default_alignment = Alignment.BOTTOM if scene_mode else p.alignment
             specs.append(
                 RenderSpec(
                     preset=preset_id,
                     width=self.custom_width if custom else p.width,
                     height=self.custom_height if custom else p.height,
                     fill=self.fill if self.fill is not None else p.fill,
-                    alignment=self.alignment or p.alignment,
+                    alignment=self.alignment or default_alignment,
                     background_color=self.background_color or p.background_color,
                     output_format=self.output_format,
                     shadow=self.shadow,
                     shadow_opacity=self.shadow_opacity,
+                    background_mode=self.background_mode,
+                    scene=self.scene,
+                    scene_prompt=self.scene_prompt,
                 )
             )
         return specs

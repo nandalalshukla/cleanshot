@@ -1,12 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { listPresets } from '@/api/endpoints';
-import type { PresetId, ProcessOptions, SegmentationModel, ShadowStyle } from '@/api/types';
+import type {
+  BackgroundMode,
+  PresetId,
+  ProcessOptions,
+  SegmentationModel,
+  ShadowStyle,
+} from '@/api/types';
 import { Card, Chip, Segmented, TextField, ThemedText, ToggleRow } from '@/components';
 import { useApi } from '@/hooks/useApi';
 import { radius, spacing, useTheme } from '@/theme';
+
+import { randomSeed, ScenePicker } from './ScenePicker';
 
 const BRAND_SWATCHES = [
   '#FFFFFF',
@@ -21,7 +29,8 @@ const HEX = /^#([0-9a-fA-F]{6})$/;
 
 interface Props {
   value: ProcessOptions;
-  onChange: (next: ProcessOptions) => void;
+  /** A state setter: patches are applied to the latest options, never a stale snapshot. */
+  onChange: Dispatch<SetStateAction<ProcessOptions>>;
 }
 
 export function OptionsForm({ value, onChange }: Props) {
@@ -29,13 +38,16 @@ export function OptionsForm({ value, onChange }: Props) {
   const { colors } = useTheme();
   const [swatchPicks, setSwatchPicks] = useState(0);
   const presets = useQuery({ queryKey: ['presets', api.baseUrl], queryFn: () => listPresets(api) });
+  const patch = (p: Partial<ProcessOptions>) => onChange((prev) => ({ ...prev, ...p }));
   const set = <K extends keyof ProcessOptions>(key: K, v: ProcessOptions[K]) =>
-    onChange({ ...value, [key]: v });
+    patch({ [key]: v } as Partial<ProcessOptions>);
 
   const togglePreset = (id: PresetId) => {
-    const has = value.presets.includes(id);
-    const next = has ? value.presets.filter((p) => p !== id) : [...value.presets, id];
-    if (next.length) set('presets', next);
+    onChange((prev) => {
+      const has = prev.presets.includes(id);
+      const next = has ? prev.presets.filter((p) => p !== id) : [...prev.presets, id];
+      return next.length ? { ...prev, presets: next } : prev; // keep at least one
+    });
   };
 
   const background = value.background_color ?? '#FFFFFF';
@@ -86,36 +98,60 @@ export function OptionsForm({ value, onChange }: Props) {
 
       <Card>
         <ThemedText variant="heading">Background</ThemedText>
-        <View style={styles.wrap}>
-          {BRAND_SWATCHES.map((hex) => (
-            <Pressable
-              key={hex}
-              accessibilityRole="radio"
-              accessibilityLabel={`Background ${hex}`}
-              accessibilityState={{ selected: background === hex }}
-              onPress={() => {
-                setSwatchPicks((n) => n + 1); // resets the hex field to the picked colour
-                set('background_color', hex === '#FFFFFF' ? null : hex);
-              }}
-              style={[
-                styles.swatch,
-                {
-                  backgroundColor: hex,
-                  borderColor: background === hex ? colors.brand : colors.border,
-                },
-                background === hex && styles.swatchSelected,
-              ]}
-            />
-          ))}
-        </View>
-        <HexField
-          key={swatchPicks}
-          value={value.background_color}
-          onCommit={(hex) => set('background_color', hex)}
+        <Segmented<BackgroundMode>
+          value={value.background_mode}
+          onChange={(mode) =>
+            onChange((prev) => ({
+              ...prev,
+              background_mode: mode,
+              // Pin a seed so the preview the seller sees is exactly what gets exported.
+              scene_seed: mode === 'scene' ? (prev.scene_seed ?? randomSeed()) : prev.scene_seed,
+            }))
+          }
+          options={[
+            { value: 'color', label: 'Solid colour' },
+            { value: 'scene', label: 'AI scene' },
+          ]}
         />
-        {needsWhite && value.background_color && value.background_color !== '#FFFFFF' ? (
+        {value.background_mode === 'scene' ? (
+          <ScenePicker value={value} onChange={patch} />
+        ) : (
+          <>
+            <View style={styles.wrap}>
+              {BRAND_SWATCHES.map((hex) => (
+                <Pressable
+                  key={hex}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Background ${hex}`}
+                  accessibilityState={{ selected: background === hex }}
+                  onPress={() => {
+                    setSwatchPicks((n) => n + 1); // resets the hex field to the picked colour
+                    set('background_color', hex === '#FFFFFF' ? null : hex);
+                  }}
+                  style={[
+                    styles.swatch,
+                    {
+                      backgroundColor: hex,
+                      borderColor: background === hex ? colors.brand : colors.border,
+                    },
+                    background === hex && styles.swatchSelected,
+                  ]}
+                />
+              ))}
+            </View>
+            <HexField
+              key={swatchPicks}
+              value={value.background_color}
+              onCommit={(hex) => set('background_color', hex)}
+            />
+          </>
+        )}
+        {needsWhite &&
+        (value.background_mode === 'scene' ||
+          (value.background_color && value.background_color !== '#FFFFFF')) ? (
           <ThemedText variant="caption" color={colors.warning}>
-            Amazon, Flipkart and Meesho main images should use a pure white background.
+            Amazon, Flipkart and Meesho main images should use a pure white background. Use scenes
+            for Instagram and extra listing photos.
           </ThemedText>
         ) : null}
       </Card>

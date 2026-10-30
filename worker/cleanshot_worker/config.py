@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,13 @@ class Settings(BaseSettings):
     default_model: str = "u2netp"
     batch_ttl_hours: int = 72
     """Finished batches older than this are removed by the janitor."""
+
+    # Generated scene backgrounds
+    scene_backend: Literal["auto", "diffusion", "procedural"] = "auto"
+    """auto = diffusion when torch/diffusers are installed, else procedural backdrops."""
+    scene_model: str = "stabilityai/sd-turbo"
+    scene_steps: int = Field(2, ge=1, le=50)
+    scene_device: str = "auto"
 
     log_level: str = "INFO"
 

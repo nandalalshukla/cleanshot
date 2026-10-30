@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.concurrency import run_in_threadpool
 from pydantic import ValidationError
 
@@ -72,6 +82,7 @@ def parse_options(raw: str | None) -> ProcessOptions:
     responses={200: {"content": {t: {} for t in MEDIA_TYPES.values()}}},
 )
 async def process_single(
+    request: Request,
     file: UploadFile = File(...),
     options: str | None = Form(None, description="ProcessOptions as JSON"),
     settings: Settings = Depends(get_settings),
@@ -86,7 +97,9 @@ async def process_single(
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)) from exc
 
     def _run() -> bytes:
-        return process_image(img, opts, registry.get(opts.model)).primary.encode()
+        return process_image(
+            img, opts, registry.get(opts.model), scenes=request.app.state.scenes
+        ).primary.encode()
 
     try:
         out = await run_in_threadpool(_run)

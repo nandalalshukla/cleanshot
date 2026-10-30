@@ -1,7 +1,8 @@
 """The end-to-end pipeline for a single photo.
 
     decode → segment → auto colour → refine edges
-           → [per preset: crop/centre/pad → background → shadow → composite] → encode
+           → [per preset: crop/centre/pad → colour or generated scene → shadow → composite]
+           → quality check → encode
 
 Segmentation and refinement run once; framing and compositing run once per export preset.
 """
@@ -19,9 +20,10 @@ from . import compose, image_io
 from .color import ColorAdjustments, ColorParams, auto_color
 from .framing import Placement, frame_product, mask_bbox
 from .layer import Layer
-from .options import ProcessOptions, RenderSpec
+from .options import BackgroundMode, ProcessOptions, RenderSpec
 from .quality import QualityReport, assess
 from .refine import decontaminate_edges, refine_mask
+from .scene import ProceduralSceneGenerator, SceneService
 from .segmentation import Segmenter
 from .shadow import ShadowParams, apply_shadow, make_shadow
 
@@ -97,7 +99,30 @@ def prepare_layer(
     return layer, raw_alpha, adjustments
 
 
-def render(layer: Layer, spec: RenderSpec, timer: _Timer | None = None) -> RenderedOutput:
+_fallback_scenes: SceneService | None = None
+
+
+def _default_scenes() -> SceneService:
+    global _fallback_scenes
+    if _fallback_scenes is None:
+        _fallback_scenes = SceneService(ProceduralSceneGenerator())
+    return _fallback_scenes
+
+
+def background_for(spec: RenderSpec, scenes: SceneService | None, seed: int) -> np.ndarray:
+    canvas = (spec.width, spec.height)
+    if spec.background_mode is BackgroundMode.SCENE:
+        return (scenes or _default_scenes()).render(spec.scene, spec.scene_prompt, canvas, seed)
+    return compose.solid(canvas, compose.hex_to_rgb(spec.background_color))
+
+
+def render(
+    layer: Layer,
+    spec: RenderSpec,
+    timer: _Timer | None = None,
+    scenes: SceneService | None = None,
+    seed: int = 0,
+) -> RenderedOutput:
     timer = timer or _Timer()
     canvas = (spec.width, spec.height)
     try:
@@ -106,7 +131,8 @@ def render(layer: Layer, spec: RenderSpec, timer: _Timer | None = None) -> Rende
         raise NoProductFoundError(str(exc)) from exc
     timer.lap("frame")
 
-    background = compose.solid(canvas, compose.hex_to_rgb(spec.background_color))
+    background = background_for(spec, scenes, seed)
+    timer.lap("background")
     shadow = make_shadow(
         framed.alpha, placement, ShadowParams(style=spec.shadow, opacity=spec.shadow_opacity)
     )
@@ -127,12 +153,19 @@ def crop_cutout(layer: Layer) -> Image.Image:
 
 
 def process_image(
-    image: Image.Image, options: ProcessOptions, segmenter: Segmenter
+    image: Image.Image,
+    options: ProcessOptions,
+    segmenter: Segmenter,
+    scenes: SceneService | None = None,
+    seed: int = 0,
 ) -> ProcessResult:
+    """Run the whole pipeline. ``seed`` picks the generated scene (shared across a batch)."""
     timer = _Timer()
     layer, raw_alpha, adjustments = prepare_layer(image, options, segmenter, timer)
     specs = options.render_specs()
-    outputs = [render(layer, spec, timer) for spec in specs]
+    if options.scene_seed is not None:
+        seed = options.scene_seed
+    outputs = [render(layer, spec, timer, scenes, seed) for spec in specs]
     target_side = max(max(s.width, s.height) * s.fill for s in specs)
     # Grade the photo as captured, so lighting advice reflects what the seller shot.
     quality = assess(image_io.to_array(image), raw_alpha, target_side=int(target_side))

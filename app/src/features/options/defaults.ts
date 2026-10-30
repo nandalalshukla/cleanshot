@@ -17,6 +17,10 @@ export const DEFAULT_OPTIONS: ProcessOptions = {
   shadow_opacity: 0.35,
   auto_color: true,
   color_strength: 0.8,
+  background_mode: 'color',
+  scene: 'studio',
+  scene_prompt: null,
+  scene_seed: null,
 };
 
 const KEY = 'cleanshot.lastOptions.v1';

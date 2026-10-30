@@ -27,6 +27,16 @@ export type PresetId =
 export type Alignment = 'center' | 'bottom';
 export type OutputFormat = 'jpeg' | 'png' | 'webp';
 export type ShadowStyle = 'none' | 'ground' | 'drop';
+export type BackgroundMode = 'color' | 'scene';
+export type SceneId =
+  'studio' | 'marble' | 'wood' | 'linen' | 'nature' | 'festive' | 'kitchen' | 'beach' | 'custom';
+
+export interface SceneCatalog {
+  /** 'diffusion' = AI-generated scenes; 'procedural' = built-in studio backdrops. */
+  backend: 'diffusion' | 'procedural' | string;
+  model: string | null;
+  scenes: { id: SceneId; label: string; prompt: string }[];
+}
 
 export interface Preset {
   id: PresetId;
@@ -58,6 +68,11 @@ export interface ProcessOptions {
   /** White balance, levels and exposure fix-up. */
   auto_color: boolean;
   color_strength: number;
+  background_mode: BackgroundMode;
+  scene: SceneId;
+  scene_prompt: string | null;
+  /** Fix to reproduce a scene; null = one scene per batch chosen by the worker. */
+  scene_seed: number | null;
 }
 
 export type QualityVerdict = 'ok' | 'warning' | 'retake';

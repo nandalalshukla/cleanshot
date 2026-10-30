@@ -10,12 +10,31 @@ import type {
   ModelInfo,
   Preset,
   ProcessOptions,
+  SceneCatalog,
+  SceneId,
 } from './types';
 
 export const getHealth = (api: ApiClient) => api.request<HealthResponse>('/health', {}, 8_000);
 
 export const listPresets = (api: ApiClient) => api.request<Preset[]>('/v1/presets');
 export const listModels = (api: ApiClient) => api.request<ModelInfo[]>('/v1/models');
+
+export const listScenes = (api: ApiClient) => api.request<SceneCatalog>('/v1/scenes');
+
+/** Path for a background-only preview; load it with RemoteImage. */
+export function scenePreviewPath(
+  scene: SceneId,
+  opts: { prompt?: string | null; seed?: number; width?: number; height?: number } = {},
+): string {
+  const q = new URLSearchParams({
+    scene,
+    seed: String(opts.seed ?? 0),
+    width: String(opts.width ?? 384),
+    height: String(opts.height ?? 384),
+  });
+  if (opts.prompt) q.set('prompt', opts.prompt);
+  return `/v1/scenes/preview?${q.toString()}`;
+}
 
 // ---- batches ---------------------------------------------------------------------------------
 

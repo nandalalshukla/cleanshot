@@ -14,6 +14,7 @@ from ..pipeline.options import ProcessOptions
 from ..pipeline.process import NoProductFoundError, process_image
 from ..pipeline.quality import QualityReport, Verdict, no_product_flag
 from ..pipeline.registry import SegmenterRegistry
+from ..pipeline.scene import SceneService, seed_for
 from .files import BatchFiles
 from .models import ImageStatus, OutputFile
 from .store import JobStore, NotFoundError
@@ -37,7 +38,9 @@ class ImageProcessor:
         registry: SegmenterRegistry,
         batches_dir: Path,
         max_input_side: int,
+        scenes: SceneService | None = None,
     ) -> None:
+        self.scenes = scenes
         self.store = store
         self.registry = registry
         self.batches_dir = batches_dir
@@ -59,7 +62,13 @@ class ImageProcessor:
             img = image_io.load_image(
                 files.input(record.stored_name).read_bytes(), self.max_input_side
             )
-            result = process_image(img, options, self.registry.get(options.model))
+            result = process_image(
+                img,
+                options,
+                self.registry.get(options.model),
+                scenes=self.scenes,
+                seed=seed_for(batch.id),  # one shared scene per batch
+            )
 
             shutil.rmtree(out_dir, ignore_errors=True)
             out_dir.mkdir(parents=True, exist_ok=True)
