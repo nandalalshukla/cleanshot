@@ -96,10 +96,10 @@ def test_frame_product_rejects_empty_mask():
 
 
 def test_process_image_produces_white_square():
-    opts = ProcessOptions(width=800, height=800)
+    opts = ProcessOptions(presets=["custom"], custom_width=800, custom_height=800)
     result = process_image(product_photo(), opts, ThresholdSegmenter())
-    assert result.image.size == (800, 800)
-    px = np.asarray(result.image)
+    assert result.primary.image.size == (800, 800)
+    px = np.asarray(result.primary.image)
     assert tuple(px[5, 5]) == (255, 255, 255)
     assert px[400, 400, 0] > 150 and px[400, 400, 1] < 100  # red product in the middle
 
@@ -116,7 +116,13 @@ def test_process_endpoint_honours_options(client):
         files={"file": ("p.jpg", to_bytes(product_photo()), "image/jpeg")},
         data={
             "options": json.dumps(
-                {"width": 600, "height": 900, "output_format": "png", "background_color": "#0f0"}
+                {
+                    "presets": ["custom"],
+                    "custom_width": 600,
+                    "custom_height": 900,
+                    "output_format": "png",
+                    "background_color": "#0f0",
+                }
             )
         },
     )

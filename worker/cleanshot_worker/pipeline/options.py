@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .framing import Alignment
+from .presets import PresetId, get_preset
 from .segmentation import SegmentationModel
 
 HEX_COLOR = re.compile(r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
@@ -19,21 +21,73 @@ class OutputFormat(StrEnum):
     WEBP = "webp"
 
 
+def normalize_hex(v: str) -> str:
+    if not HEX_COLOR.match(v):
+        raise ValueError("must be a hex colour like #FFFFFF")
+    v = v.lstrip("#").upper()
+    if len(v) == 3:
+        v = "".join(c * 2 for c in v)
+    return "#" + v
+
+
+@dataclass(frozen=True)
+class RenderSpec:
+    """Fully-resolved settings for one output image."""
+
+    preset: PresetId
+    width: int
+    height: int
+    fill: float
+    alignment: Alignment
+    background_color: str
+    output_format: OutputFormat
+
+    @property
+    def filename_suffix(self) -> str:
+        ext = "jpg" if self.output_format is OutputFormat.JPEG else self.output_format.value
+        return f"{self.preset.value}_{self.width}x{self.height}.{ext}"
+
+
 class ProcessOptions(BaseModel):
+    """What the seller picked in the app. Fields left as ``None`` fall back to the preset."""
+
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     model: SegmentationModel = SegmentationModel.U2NETP
-    width: int = Field(2000, ge=256, le=4096)
-    height: int = Field(2000, ge=256, le=4096)
-    fill: float = Field(0.85, ge=0.3, le=1.0, description="Share of the frame the product fills")
-    alignment: Alignment = Alignment.CENTER
-    background_color: str = "#FFFFFF"
     refine_edges: bool = True
+    presets: list[PresetId] = Field(default_factory=lambda: [PresetId.AMAZON], min_length=1)
+    custom_width: int = Field(2000, ge=256, le=4096)
+    custom_height: int = Field(2000, ge=256, le=4096)
+
+    fill: float | None = Field(None, ge=0.3, le=1.0, description="Share of frame the product fills")
+    alignment: Alignment | None = None
+    background_color: str | None = Field(None, description="Brand colour; overrides preset white")
     output_format: OutputFormat = OutputFormat.JPEG
+
+    @field_validator("presets")
+    @classmethod
+    def _unique(cls, v: list[PresetId]) -> list[PresetId]:
+        return list(dict.fromkeys(v))
 
     @field_validator("background_color")
     @classmethod
-    def _hex(cls, v: str) -> str:
-        if not HEX_COLOR.match(v):
-            raise ValueError("must be a hex colour like #FFFFFF")
-        return "#" + v.lstrip("#").upper()
+    def _hex(cls, v: str | None) -> str | None:
+        return normalize_hex(v) if v else None
+
+    def render_specs(self) -> list[RenderSpec]:
+        specs = []
+        for preset_id in self.presets:
+            p = get_preset(preset_id)
+            custom = preset_id is PresetId.CUSTOM
+            specs.append(
+                RenderSpec(
+                    preset=preset_id,
+                    width=self.custom_width if custom else p.width,
+                    height=self.custom_height if custom else p.height,
+                    fill=self.fill if self.fill is not None else p.fill,
+                    alignment=self.alignment or p.alignment,
+                    background_color=self.background_color or p.background_color,
+                    output_format=self.output_format,
+                )
+            )
+        return specs

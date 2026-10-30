@@ -1,6 +1,8 @@
 """The end-to-end pipeline for a single photo.
 
-decode → segment → refine edges → crop/centre/pad → background → encode
+    decode → segment → refine edges → [per preset: crop/centre/pad → background] → encode
+
+Segmentation and refinement run once; framing and compositing run once per export preset.
 """
 
 from __future__ import annotations
@@ -13,9 +15,9 @@ import numpy as np
 from PIL import Image
 
 from . import compose, image_io
-from .framing import Placement, frame_product
+from .framing import Placement, frame_product, mask_bbox
 from .layer import Layer
-from .options import ProcessOptions
+from .options import ProcessOptions, RenderSpec
 from .refine import decontaminate_edges, refine_mask
 from .segmentation import Segmenter
 
@@ -27,18 +29,27 @@ class NoProductFoundError(ValueError):
 
 
 @dataclass
-class ProcessResult:
+class RenderedOutput:
+    spec: RenderSpec
     image: Image.Image
-    """Final marketplace image (opaque)."""
+    placement: Placement
+
+    def encode(self) -> bytes:
+        return image_io.encode(self.image, self.spec.output_format.value)
+
+
+@dataclass
+class ProcessResult:
+    outputs: list[RenderedOutput]
     cutout: Image.Image
-    """Framed product on a transparent canvas — useful for re-compositing client side."""
+    """Product cropped to its bounds on transparency, at source resolution."""
     raw_alpha: np.ndarray
     """Unrefined mask at input resolution (used by quality checks)."""
-    placement: Placement
     timings: dict[str, float] = field(default_factory=dict)
 
-    def encoded(self, options: ProcessOptions) -> bytes:
-        return image_io.encode(self.image, options.output_format.value)
+    @property
+    def primary(self) -> RenderedOutput:
+        return self.outputs[0]
 
 
 class _Timer:
@@ -48,43 +59,56 @@ class _Timer:
 
     def lap(self, name: str) -> None:
         now = time.perf_counter()
-        self.timings[name] = round(now - self._t, 4)
+        self.timings[name] = round(self.timings.get(name, 0.0) + now - self._t, 4)
         self._t = now
 
 
-def process_image(
-    image: Image.Image, options: ProcessOptions, segmenter: Segmenter
-) -> ProcessResult:
-    timer = _Timer()
-    rgb = image_io.to_array(image)
-
+def prepare_layer(
+    image: Image.Image, options: ProcessOptions, segmenter: Segmenter, timer: _Timer
+) -> tuple[Layer, np.ndarray]:
+    """Segment and refine; returns the full-resolution product layer and the raw mask."""
     raw_alpha = segmenter.segment(image)
     timer.lap("segment")
     if float(raw_alpha.max(initial=0.0)) < 0.5:
         raise NoProductFoundError("No product detected in the photo")
 
     alpha = refine_mask(raw_alpha) if options.refine_edges else raw_alpha
-    layer = Layer(rgb, alpha)
+    layer = Layer(image_io.to_array(image), alpha)
     if options.refine_edges:
         layer = decontaminate_edges(layer)
     timer.lap("refine")
+    return layer, raw_alpha
 
-    canvas = (options.width, options.height)
+
+def render(layer: Layer, spec: RenderSpec, timer: _Timer | None = None) -> RenderedOutput:
+    timer = timer or _Timer()
+    canvas = (spec.width, spec.height)
     try:
-        framed, placement = frame_product(layer, canvas, options.fill, options.alignment)
+        framed, placement = frame_product(layer, canvas, spec.fill, spec.alignment)
     except ValueError as exc:
         raise NoProductFoundError(str(exc)) from exc
     timer.lap("frame")
 
-    background = compose.solid(canvas, compose.hex_to_rgb(options.background_color))
+    background = compose.solid(canvas, compose.hex_to_rgb(spec.background_color))
     final = compose.over(framed, background)
     timer.lap("compose")
+    return RenderedOutput(spec, image_io.to_image(final), placement)
 
+
+def crop_cutout(layer: Layer) -> Image.Image:
+    box = mask_bbox(layer.alpha)
+    if box is None:
+        return layer.to_rgba()
+    return layer.to_rgba().crop((box.x0, box.y0, box.x1, box.y1))
+
+
+def process_image(
+    image: Image.Image, options: ProcessOptions, segmenter: Segmenter
+) -> ProcessResult:
+    timer = _Timer()
+    layer, raw_alpha = prepare_layer(image, options, segmenter, timer)
+    outputs = [render(layer, spec, timer) for spec in options.render_specs()]
     log.debug("processed image in %s", timer.timings)
     return ProcessResult(
-        image=image_io.to_image(final),
-        cutout=framed.to_rgba(),
-        raw_alpha=raw_alpha,
-        placement=placement,
-        timings=timer.timings,
+        outputs=outputs, cutout=crop_cutout(layer), raw_alpha=raw_alpha, timings=timer.timings
     )
