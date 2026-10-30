@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleanshot-worker"
+version = "0.1.0"
+description = "CleanShot image worker: background removal, framing and marketplace export for product photos."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "python-multipart>=0.0.9",
+    "numpy>=1.26",
+    "pillow>=10.3",
+    "opencv-python-headless>=4.9",
+    "rembg[cpu]>=2.0.57",
+]
+
+[project.optional-dependencies]
+# Generated scene backgrounds with a small diffusion model (sd-turbo by default).
+diffusion = [
+    "torch>=2.2",
+    "diffusers>=0.29",
+    "transformers>=4.41",
+    "accelerate>=0.30",
+]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+cleanshot-worker = "cleanshot_worker.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["cleanshot_worker*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["B008"]  # FastAPI dependency injection uses calls in defaults
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
