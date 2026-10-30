@@ -95,6 +95,13 @@ def _get_session(model: SegmentationModel) -> object:
 
 
 def warm_up(models: list[SegmentationModel | str]) -> None:
-    """Load models ahead of time so the first request isn't slow."""
+    """Load (and download, if needed) models ahead of time so the first request isn't slow."""
     for m in models:
         _get_session(SegmentationModel(m))
+
+
+if __name__ == "__main__":  # python -m cleanshot_worker.pipeline.segmentation u2netp isnet-...
+    import sys
+
+    logging.basicConfig(level=logging.INFO)
+    warm_up(sys.argv[1:] or [SegmentationModel.U2NETP])

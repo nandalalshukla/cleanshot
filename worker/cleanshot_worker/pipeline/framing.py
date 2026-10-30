@@ -45,7 +45,7 @@ def mask_bbox(alpha: np.ndarray, threshold: float = 0.05) -> BBox | None:
     ys, xs = np.nonzero(alpha > threshold)
     if len(xs) == 0:
         return None
-    return BBox(int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+    return BBox(int(np.min(xs)), int(np.min(ys)), int(np.max(xs)) + 1, int(np.max(ys)) + 1)
 
 
 def frame_product(

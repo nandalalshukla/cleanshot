@@ -188,27 +188,29 @@ class ProceduralSceneGenerator:
         t = t * t * (3 - 2 * t)
         top = np.array(preset.top, np.float32)
         floor = np.array(preset.floor, np.float32)
-        img = np.broadcast_to(top * (1 - t) + floor * t, (h, w, 3)).copy()
+        img: np.ndarray = np.broadcast_to(top * (1 - t) + floor * t, (h, w, 3)).copy()
 
         small = (max(8, w // 8), max(8, h // 8))
         if preset.texture == "wood":
-            grain = rng.normal(0, 1, (small[1], 4)).astype(np.float32)
+            grain: np.ndarray = rng.normal(0, 1, (small[1], 4)).astype(np.float32)
             grain = cv2.resize(grain, (w, h), interpolation=cv2.INTER_CUBIC)
             img += (grain * 10.0)[..., None] * (t > 0.5)
         elif preset.texture == "marble":
-            veins = rng.normal(0, 1, (small[1] // 2 + 1, small[0] // 2 + 1)).astype(np.float32)
+            veins: np.ndarray = rng.normal(0, 1, (small[1] // 2 + 1, small[0] // 2 + 1)).astype(
+                np.float32
+            )
             veins = cv2.resize(veins, (w, h), interpolation=cv2.INTER_CUBIC)
             img -= (np.abs(np.sin(veins * 3.0)) < 0.08)[..., None] * 18.0
         elif preset.texture == "bokeh":
             for _ in range(28):
                 cx, cy = rng.integers(0, w), rng.integers(0, int(h * horizon))
                 r = int(rng.integers(max(4, w // 60), max(6, w // 18)))
-                glow = np.zeros((h, w), np.float32)
+                glow: np.ndarray = np.zeros((h, w), np.float32)
                 cv2.circle(glow, (int(cx), int(cy)), r, 1.0, -1)
                 glow = cv2.GaussianBlur(glow, (0, 0), r * 0.35)
                 img += glow[..., None] * np.array((255, 190, 90), np.float32) * 0.55
         elif preset.texture in ("noise", "linen"):
-            n = rng.normal(0, 1, (small[1], small[0])).astype(np.float32)
+            n: np.ndarray = rng.normal(0, 1, (small[1], small[0])).astype(np.float32)
             n = cv2.resize(n, (w, h), interpolation=cv2.INTER_CUBIC)
             img += n[..., None] * (6.0 if preset.texture == "noise" else 3.0)
 
@@ -243,7 +245,7 @@ class DiffusionSceneGenerator:
                 "Install the diffusion extra: pip install 'cleanshot-worker[diffusion]'"
             ) from exc
 
-        self.model = model
+        self.model: str | None = model
         self.steps = steps
         if device == "auto":
             device = (
@@ -349,7 +351,7 @@ class LazyDiffusion:
     backend = "diffusion"
 
     def __init__(self, model: str, steps: int, device: str) -> None:
-        self.model = model
+        self.model: str | None = model
         self._args = (model, steps, device)
         self._impl: DiffusionSceneGenerator | None = None
         self._lock = threading.Lock()

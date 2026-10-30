@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cleanshot.app",
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -41,6 +43,14 @@
           "photosPermission": "CleanShot needs access to your photos so you can pick product shots to clean up.",
           "cameraPermission": "CleanShot uses the camera so you can snap or retake product photos."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "experiments": {
@@ -48,6 +58,9 @@
     },
     "extra": {
       "defaultApiUrl": "http://localhost:8000"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

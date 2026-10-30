@@ -18,9 +18,12 @@ dependencies = [
     "pillow>=10.3",
     "opencv-python-headless>=4.9",
     "rembg[cpu]>=2.0.57",
+    "pillow-heif>=0.16",  # iPhone HEIC uploads
 ]
 
 [project.optional-dependencies]
+# Use the GPU build of ONNX Runtime for segmentation (install instead of the default CPU one).
+gpu = ["rembg[gpu]>=2.0.57"]
 # Generated scene backgrounds with a small diffusion model (sd-turbo by default).
 diffusion = [
     "torch>=2.2",
@@ -58,3 +61,4 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
+plugins = ["pydantic.mypy"]

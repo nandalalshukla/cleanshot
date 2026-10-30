@@ -43,7 +43,7 @@ def remove_specks(alpha: np.ndarray, ratio: float) -> np.ndarray:
         return alpha
     areas = stats[1:, cv2.CC_STAT_AREA]
     keep = np.zeros(n, dtype=bool)
-    keep[1:] = areas >= areas.max() * ratio
+    keep[1:] = areas >= np.max(areas) * ratio
     return np.where(keep[labels] | (binary == 0), alpha, 0.0).astype(np.float32)
 
 
@@ -80,10 +80,10 @@ def refine_mask(alpha: np.ndarray, options: RefineOptions | None = None) -> np.n
     if opts.feather_px > 0:
         blurred = cv2.GaussianBlur(alpha, (0, 0), opts.feather_px)
         # Only soften the transition band so solid interiors stay fully opaque.
-        band = cv2.dilate(_binary(alpha, 0.02), np.ones((3, 3), np.uint8)) & cv2.dilate(
-            1 - _binary(alpha, 0.98), np.ones((3, 3), np.uint8)
-        )
-        alpha = np.where(band.astype(bool), blurred, alpha)
+        k = np.ones((3, 3), np.uint8)
+        near_fg = np.asarray(cv2.dilate(_binary(alpha, 0.02), k), dtype=bool)
+        near_bg = np.asarray(cv2.dilate(1 - _binary(alpha, 0.98), k), dtype=bool)
+        alpha = np.where(near_fg & near_bg, blurred, alpha)
 
     return np.clip(alpha, 0.0, 1.0).astype(np.float32)
 

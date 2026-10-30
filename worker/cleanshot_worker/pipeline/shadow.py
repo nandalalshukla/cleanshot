@@ -40,7 +40,9 @@ class ShadowParams:
 def _small(alpha: np.ndarray) -> np.ndarray:
     h, w = alpha.shape
     return cv2.resize(
-        alpha, (max(1, int(w * _WORK_SCALE)), max(1, int(h * _WORK_SCALE))), cv2.INTER_AREA
+        alpha,
+        (max(1, int(w * _WORK_SCALE)), max(1, int(h * _WORK_SCALE))),
+        interpolation=cv2.INTER_AREA,
     )
 
 

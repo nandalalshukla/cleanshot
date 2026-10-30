@@ -23,7 +23,7 @@ class InvalidImageError(ValueError):
 def load_image(data: bytes, max_side: int | None = None) -> Image.Image:
     """Decode bytes into an upright RGB image, optionally capping the longest side."""
     try:
-        img = Image.open(io.BytesIO(data))
+        img: Image.Image = Image.open(io.BytesIO(data))
         img.load()
     except (UnidentifiedImageError, OSError) as exc:
         raise InvalidImageError("File is not a supported image") from exc

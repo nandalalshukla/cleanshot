@@ -1,0 +1,24 @@
+# Run the worker: `docker compose up -d`, then point the app at http://<this-machine-ip>:8000
+services:
+  worker:
+    build:
+      context: ./worker
+      args:
+        EXTRAS: ""            # "[diffusion]" for AI-generated scenes (large image)
+        PRELOAD_MODELS: "u2netp"
+    image: cleanshot-worker
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./worker/.env
+        required: false
+    environment:
+      CLEANSHOT_WORKER_CONCURRENCY: "2"
+    volumes:
+      - cleanshot-data:/data
+      - cleanshot-models:/models
+
+volumes:
+  cleanshot-data:
+  cleanshot-models:

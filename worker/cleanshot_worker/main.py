@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,14 @@ from .pipeline.registry import SegmenterRegistry
 from .pipeline.scene import SceneService, create_scene_service
 
 log = logging.getLogger(__name__)
+
+
+def _warm_up(registry: SegmenterRegistry, models: list[str]) -> None:
+    for model in models:
+        try:
+            registry.get(model)
+        except Exception:
+            log.exception("Could not warm up model %s", model)
 
 
 def create_app(
@@ -53,6 +62,11 @@ def create_app(
             log.info("Re-queuing %d unfinished image(s) from a previous run", len(pending))
             queue.submit_many(pending)
         janitor.start()
+        if settings.warmup_models:
+            # Load models in the background so the server can answer health checks meanwhile.
+            threading.Thread(
+                target=_warm_up, args=(registry, settings.warmup_models), daemon=True
+            ).start()
         try:
             yield
         finally:

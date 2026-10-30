@@ -166,14 +166,14 @@ def assess(
     # Fragments: significant separate blobs
     n, _labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
     areas = stats[1:, cv2.CC_STAT_AREA] if n > 1 else np.array([area])
-    significant = int((areas >= areas.max() * 0.05).sum())
+    significant = int((areas >= np.max(areas) * 0.05).sum())
     metrics["fragments"] = significant
     if significant > t.max_fragments:
         flags.append(_flag("fragmented"))
 
     # Resolution: longest side of the product in source pixels
     ys, xs = np.nonzero(binary)
-    product_side = int(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
+    product_side = int(max(np.ptp(xs) + 1, np.ptp(ys) + 1))
     metrics["product_side_px"] = product_side
     if product_side < t.min_product_side_px or (target_side and target_side / product_side > 4.0):
         flags.append(_flag("low_resolution"))

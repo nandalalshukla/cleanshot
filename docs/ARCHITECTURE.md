@@ -12,7 +12,35 @@
 * **Worker** — owns all image processing. Stateless HTTP layer on top of a small job store and
   a thread pool that runs the processing pipeline.
 
-Details of the pipeline, job model and API are filled in as each phase lands.
+## Image pipeline (`worker/cleanshot_worker/pipeline/`)
+
+```
+image_io.load_image      EXIF rotate, flatten alpha, cap to 4096 px, HEIC via pillow-heif
+segmentation             rembg session per model, shared across threads  → raw alpha
+color.auto_color         WB from backdrop pixels, levels, gamma, vibrance (optional)
+refine                   remove specks, fill pin-holes, choke + feather, decontaminate halo
+── per preset ───────────────────────────────────────────────────────────────────────────
+framing.frame_product    crop to mask bbox, scale to fill × canvas, centre / bottom-align
+background               solid colour, or scene.SceneService (diffusion | procedural)
+shadow                   ground (squashed + blurred mask) or drop shadow, darkens background
+compose.over             alpha-composite product over background
+─────────────────────────────────────────────────────────────────────────────────────────
+quality.assess           grades the photo as captured from the raw mask → verdict + flags
+```
+
+Everything works on numpy arrays (`Layer` = RGB uint8 + float alpha), so stages are small
+pure functions that are easy to test in isolation. `process.process_image` wires them up and
+returns per-stage timings.
+
+### Model choices
+
+| Job | Model | Notes |
+| --- | --- | --- |
+| Segmentation (fast) | `u2netp` (~4.7 MB) | ~0.4 s/photo on CPU; default |
+| Segmentation (quality) | `isnet-general-use`, `birefnet-general-lite` | better hair/fabric/jewellery edges |
+| Scene generation | `stabilityai/sd-turbo` | 2 steps, guidance 0, ~512 px then upscaled + blurred |
+
+`scripts/compare_models.py` benchmarks segmentation models on your own photos.
 
 ## Batch flow
 
@@ -37,3 +65,24 @@ GET  /v1/batches/:id/download   ◀──   ZIP: <preset>_<WxH>/<photo>.jpg + re
   worker only see their own batches. Authentication is the optional `X-API-Key`.
 
 Retakes use `PUT /v1/batches/:id/images/:imageId`, which swaps the file and re-processes it.
+
+## API reference
+
+Interactive OpenAPI docs are served at `/docs`. All `/v1` routes require `X-API-Key` when
+`CLEANSHOT_API_KEY` is set; batch routes are scoped by the optional `X-Client-Id` header.
+
+| Method & path | Purpose |
+| --- | --- |
+| `GET /health` | Liveness (always public) |
+| `GET /v1/presets` · `GET /v1/models` · `GET /v1/scenes` | Catalogs for the app's option pickers |
+| `GET /v1/scenes/preview?scene=&prompt=&seed=` | Background-only preview image |
+| `POST /v1/remove-background` · `POST /v1/process` | Single photo, synchronous |
+| `POST /v1/batches` · `GET /v1/batches` · `GET/DELETE /v1/batches/:id` | Batch CRUD |
+| `POST /v1/batches/:id/images` | Upload one or more photos (`position` keeps order) |
+| `POST /v1/batches/:id/{start,cancel,retry}` | Lifecycle |
+| `PUT/DELETE /v1/batches/:id/images/:imageId` · `POST …/retry` | Retake, remove, retry one photo |
+| `GET /v1/batches/:id/images/:imageId/{original,preview,cutout,outputs/:preset}` | Files |
+| `GET /v1/batches/:id/download` | ZIP of every finished output + `report.csv` |
+
+Wire types are mirrored in `app/src/api/types.ts`; keep both sides in sync when changing
+`worker/cleanshot_worker/api/schemas.py` or `pipeline/options.py`.

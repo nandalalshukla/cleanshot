@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     # Processing
     worker_concurrency: int = 2
     default_model: str = "u2netp"
+    warmup_models: list[str] = Field(default_factory=list)
+    """Segmentation models to load at start-up, e.g. ["u2netp", "isnet-general-use"]."""
     batch_ttl_hours: int = 72
     """Finished batches older than this are removed by the janitor."""
 
