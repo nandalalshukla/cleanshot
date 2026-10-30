@@ -15,6 +15,8 @@ export const DEFAULT_OPTIONS: ProcessOptions = {
   output_format: 'jpeg',
   shadow: 'ground',
   shadow_opacity: 0.35,
+  auto_color: true,
+  color_strength: 0.8,
 };
 
 const KEY = 'cleanshot.lastOptions.v1';

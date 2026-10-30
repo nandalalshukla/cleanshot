@@ -55,6 +55,9 @@ export interface ProcessOptions {
   output_format: OutputFormat;
   shadow: ShadowStyle;
   shadow_opacity: number;
+  /** White balance, levels and exposure fix-up. */
+  auto_color: boolean;
+  color_strength: number;
 }
 
 export type QualityVerdict = 'ok' | 'warning' | 'retake';

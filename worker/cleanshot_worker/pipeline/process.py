@@ -1,6 +1,6 @@
 """The end-to-end pipeline for a single photo.
 
-    decode → segment → refine edges
+    decode → segment → auto colour → refine edges
            → [per preset: crop/centre/pad → background → shadow → composite] → encode
 
 Segmentation and refinement run once; framing and compositing run once per export preset.
@@ -16,6 +16,7 @@ import numpy as np
 from PIL import Image
 
 from . import compose, image_io
+from .color import ColorAdjustments, ColorParams, auto_color
 from .framing import Placement, frame_product, mask_bbox
 from .layer import Layer
 from .options import ProcessOptions, RenderSpec
@@ -49,6 +50,7 @@ class ProcessResult:
     raw_alpha: np.ndarray
     """Unrefined mask at input resolution."""
     quality: QualityReport
+    color: ColorAdjustments | None = None
     timings: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -69,19 +71,30 @@ class _Timer:
 
 def prepare_layer(
     image: Image.Image, options: ProcessOptions, segmenter: Segmenter, timer: _Timer
-) -> tuple[Layer, np.ndarray]:
-    """Segment and refine; returns the full-resolution product layer and the raw mask."""
+) -> tuple[Layer, np.ndarray, ColorAdjustments | None]:
+    """Segment, colour-correct and refine.
+
+    Returns the full-resolution product layer, the raw mask and any colour adjustments.
+    Segmentation runs on the original photo (models are trained on natural images); colour
+    correction then uses the mask to white-balance against the backdrop.
+    """
     raw_alpha = segmenter.segment(image)
     timer.lap("segment")
     if float(raw_alpha.max(initial=0.0)) < 0.5:
         raise NoProductFoundError("No product detected in the photo")
 
+    rgb = image_io.to_array(image)
+    adjustments = None
+    if options.auto_color:
+        rgb, adjustments = auto_color(rgb, raw_alpha, ColorParams(strength=options.color_strength))
+        timer.lap("color")
+
     alpha = refine_mask(raw_alpha) if options.refine_edges else raw_alpha
-    layer = Layer(image_io.to_array(image), alpha)
+    layer = Layer(rgb, alpha)
     if options.refine_edges:
         layer = decontaminate_edges(layer)
     timer.lap("refine")
-    return layer, raw_alpha
+    return layer, raw_alpha, adjustments
 
 
 def render(layer: Layer, spec: RenderSpec, timer: _Timer | None = None) -> RenderedOutput:
@@ -117,11 +130,12 @@ def process_image(
     image: Image.Image, options: ProcessOptions, segmenter: Segmenter
 ) -> ProcessResult:
     timer = _Timer()
-    layer, raw_alpha = prepare_layer(image, options, segmenter, timer)
+    layer, raw_alpha, adjustments = prepare_layer(image, options, segmenter, timer)
     specs = options.render_specs()
     outputs = [render(layer, spec, timer) for spec in specs]
     target_side = max(max(s.width, s.height) * s.fill for s in specs)
-    quality = assess(layer.rgb, raw_alpha, target_side=int(target_side))
+    # Grade the photo as captured, so lighting advice reflects what the seller shot.
+    quality = assess(image_io.to_array(image), raw_alpha, target_side=int(target_side))
     timer.lap("quality")
     log.debug("processed image in %s", timer.timings)
     return ProcessResult(
@@ -129,5 +143,6 @@ def process_image(
         cutout=crop_cutout(layer),
         raw_alpha=raw_alpha,
         quality=quality,
+        color=adjustments,
         timings=timer.timings,
     )

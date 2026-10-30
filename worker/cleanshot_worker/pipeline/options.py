@@ -68,6 +68,8 @@ class ProcessOptions(BaseModel):
     output_format: OutputFormat = OutputFormat.JPEG
     shadow: ShadowStyle = ShadowStyle.GROUND
     shadow_opacity: float = Field(0.35, ge=0.0, le=1.0)
+    auto_color: bool = Field(True, description="White balance, levels and exposure fix-up")
+    color_strength: float = Field(0.8, ge=0.0, le=1.0)
 
     @field_validator("presets")
     @classmethod

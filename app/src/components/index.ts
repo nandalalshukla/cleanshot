@@ -9,3 +9,4 @@ export * from './Segmented';
 export * from './StatusBadge';
 export * from './TextField';
 export * from './ThemedText';
+export * from './ToggleRow';

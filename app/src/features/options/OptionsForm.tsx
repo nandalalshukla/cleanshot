@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { listPresets } from '@/api/endpoints';
 import type { PresetId, ProcessOptions, SegmentationModel, ShadowStyle } from '@/api/types';
-import { Card, Chip, Segmented, TextField, ThemedText } from '@/components';
+import { Card, Chip, Segmented, TextField, ThemedText, ToggleRow } from '@/components';
 import { useApi } from '@/hooks/useApi';
 import { radius, spacing, useTheme } from '@/theme';
 
@@ -122,6 +122,23 @@ export function OptionsForm({ value, onChange }: Props) {
 
       <Card>
         <ThemedText variant="heading">Look</ThemedText>
+        <ToggleRow
+          label="Auto colour correction"
+          description="Fixes yellow indoor light, dull colours and dark photos."
+          value={value.auto_color}
+          onChange={(v) => set('auto_color', v)}
+        />
+        {value.auto_color ? (
+          <Segmented<number>
+            value={value.color_strength}
+            onChange={(v) => set('color_strength', v)}
+            options={[
+              { value: 0.5, label: 'Subtle' },
+              { value: 0.8, label: 'Natural' },
+              { value: 1, label: 'Strong' },
+            ]}
+          />
+        ) : null}
         <ThemedText variant="caption" muted>
           Shadow
         </ThemedText>
