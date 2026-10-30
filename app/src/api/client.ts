@@ -1,4 +1,4 @@
-import type { AppSettings } from '@/lib/settings';
+type ClientSettings = { apiUrl: string; apiKey: string; clientId?: string };
 
 export class ApiError extends Error {
   constructor(
@@ -15,14 +15,23 @@ export class ApiError extends Error {
  * All endpoints live in `endpoints.ts`; screens never call fetch directly.
  */
 export class ApiClient {
-  constructor(private readonly settings: AppSettings) {}
+  constructor(private readonly settings: ClientSettings) {}
 
   get baseUrl(): string {
     return this.settings.apiUrl;
   }
 
+  /** Headers every request (including image loads and downloads) must carry. */
   get authHeaders(): Record<string, string> {
-    return this.settings.apiKey ? { 'X-API-Key': this.settings.apiKey } : {};
+    const headers: Record<string, string> = {};
+    if (this.settings.apiKey) headers['X-API-Key'] = this.settings.apiKey;
+    if (this.settings.clientId) headers['X-Client-Id'] = this.settings.clientId;
+    return headers;
+  }
+
+  /** Image source for expo-image, with auth headers. Accepts worker-relative paths. */
+  imageSource(path: string) {
+    return { uri: path.startsWith('http') ? path : this.url(path), headers: this.authHeaders };
   }
 
   url(path: string): string {

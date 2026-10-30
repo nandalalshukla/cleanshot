@@ -9,7 +9,7 @@ description = "CleanShot image worker: background removal, framing and marketpla
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.120",
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
@@ -52,6 +52,7 @@ ignore = ["B008"]  # FastAPI dependency injection uses calls in defaults
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.mypy]
 python_version = "3.11"

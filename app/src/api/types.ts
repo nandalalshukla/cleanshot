@@ -56,3 +56,49 @@ export interface ProcessOptions {
   shadow: ShadowStyle;
   shadow_opacity: number;
 }
+
+export type BatchStatus = 'draft' | 'processing' | 'completed' | 'cancelled';
+export type ImageStatus = 'uploaded' | 'queued' | 'processing' | 'done' | 'failed' | 'cancelled';
+
+export interface OutputFile {
+  preset: PresetId;
+  filename: string;
+  width: number;
+  height: number;
+  url: string;
+}
+
+export interface BatchImage {
+  id: string;
+  position: number;
+  filename: string;
+  status: ImageStatus;
+  error: string | null;
+  width: number;
+  height: number;
+  attempts: number;
+  outputs: OutputFile[];
+  quality: Record<string, unknown> | null;
+  timings: Record<string, number>;
+  original_url: string;
+  preview_url: string | null;
+  cutout_url: string | null;
+}
+
+export interface BatchSummary {
+  id: string;
+  name: string;
+  status: BatchStatus;
+  created_at: number;
+  updated_at: number;
+  total: number;
+  counts: Record<ImageStatus, number>;
+  progress: number;
+  cover_url: string | null;
+  download_url: string;
+}
+
+export interface Batch extends BatchSummary {
+  options: ProcessOptions;
+  images: BatchImage[];
+}

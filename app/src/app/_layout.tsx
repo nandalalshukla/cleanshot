@@ -23,6 +23,9 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" options={{ title: 'CleanShot' }} />
             <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'modal' }} />
+            <Stack.Screen name="batch/new" options={{ title: 'New batch' }} />
+            <Stack.Screen name="batch/[id]/index" options={{ title: 'Batch' }} />
+            <Stack.Screen name="batch/[id]/[imageId]" options={{ title: 'Photo' }} />
           </Stack>
         </QueryClientProvider>
       </SettingsProvider>

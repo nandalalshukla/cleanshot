@@ -10,6 +10,17 @@ export interface AppSettings {
   apiUrl: string;
   /** Optional shared secret sent as X-API-Key. */
   apiKey: string;
+  /** Random per-install id; keeps batches from different phones apart on a shared worker. */
+  clientId: string;
+}
+
+function randomId(): string {
+  let id = '';
+  for (let i = 0; i < 4; i++)
+    id += Math.floor(Math.random() * 0xffffffff)
+      .toString(16)
+      .padStart(8, '0');
+  return id;
 }
 
 const defaultSettings: AppSettings = {
@@ -18,6 +29,7 @@ const defaultSettings: AppSettings = {
     (Constants.expoConfig?.extra?.defaultApiUrl as string | undefined) ??
     'http://localhost:8000',
   apiKey: process.env.EXPO_PUBLIC_API_KEY ?? '',
+  clientId: '',
 };
 
 export function normalizeUrl(url: string): string {
@@ -38,8 +50,14 @@ export function SettingsProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) setSettings({ ...defaultSettings, ...(JSON.parse(raw) as Partial<AppSettings>) });
+      .then(async (raw) => {
+        const stored = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {};
+        const next = { ...defaultSettings, ...stored };
+        if (!next.clientId) {
+          next.clientId = randomId();
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        setSettings(next);
       })
       .catch(() => undefined)
       .finally(() => setReady(true));

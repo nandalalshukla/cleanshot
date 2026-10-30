@@ -32,7 +32,7 @@ async def read_upload(file: UploadFile, settings: Settings) -> bytes:
     data = await file.read(limit + 1)
     if len(data) > limit:
         raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status.HTTP_413_CONTENT_TOO_LARGE,
             f"{file.filename or 'File'} is larger than {settings.max_upload_mb} MB",
         )
     if not data:
