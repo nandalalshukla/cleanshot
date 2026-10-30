@@ -1,6 +1,7 @@
 """The end-to-end pipeline for a single photo.
 
-    decode → segment → refine edges → [per preset: crop/centre/pad → background] → encode
+    decode → segment → refine edges
+           → [per preset: crop/centre/pad → background → shadow → composite] → encode
 
 Segmentation and refinement run once; framing and compositing run once per export preset.
 """
@@ -20,6 +21,7 @@ from .layer import Layer
 from .options import ProcessOptions, RenderSpec
 from .refine import decontaminate_edges, refine_mask
 from .segmentation import Segmenter
+from .shadow import ShadowParams, apply_shadow, make_shadow
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +92,13 @@ def render(layer: Layer, spec: RenderSpec, timer: _Timer | None = None) -> Rende
     timer.lap("frame")
 
     background = compose.solid(canvas, compose.hex_to_rgb(spec.background_color))
+    shadow = make_shadow(
+        framed.alpha, placement, ShadowParams(style=spec.shadow, opacity=spec.shadow_opacity)
+    )
+    if shadow is not None:
+        background = apply_shadow(background, shadow)
+    timer.lap("shadow")
+
     final = compose.over(framed, background)
     timer.lap("compose")
     return RenderedOutput(spec, image_io.to_image(final), placement)

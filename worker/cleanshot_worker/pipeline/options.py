@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .framing import Alignment
 from .presets import PresetId, get_preset
 from .segmentation import SegmentationModel
+from .shadow import ShadowStyle
 
 HEX_COLOR = re.compile(r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
@@ -41,6 +42,8 @@ class RenderSpec:
     alignment: Alignment
     background_color: str
     output_format: OutputFormat
+    shadow: ShadowStyle = ShadowStyle.GROUND
+    shadow_opacity: float = 0.35
 
     @property
     def filename_suffix(self) -> str:
@@ -63,6 +66,8 @@ class ProcessOptions(BaseModel):
     alignment: Alignment | None = None
     background_color: str | None = Field(None, description="Brand colour; overrides preset white")
     output_format: OutputFormat = OutputFormat.JPEG
+    shadow: ShadowStyle = ShadowStyle.GROUND
+    shadow_opacity: float = Field(0.35, ge=0.0, le=1.0)
 
     @field_validator("presets")
     @classmethod
@@ -88,6 +93,8 @@ class ProcessOptions(BaseModel):
                     alignment=self.alignment or p.alignment,
                     background_color=self.background_color or p.background_color,
                     output_format=self.output_format,
+                    shadow=self.shadow,
+                    shadow_opacity=self.shadow_opacity,
                 )
             )
         return specs

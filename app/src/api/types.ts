@@ -26,6 +26,7 @@ export type PresetId =
 
 export type Alignment = 'center' | 'bottom';
 export type OutputFormat = 'jpeg' | 'png' | 'webp';
+export type ShadowStyle = 'none' | 'ground' | 'drop';
 
 export interface Preset {
   id: PresetId;
@@ -52,4 +53,6 @@ export interface ProcessOptions {
   alignment: Alignment | null;
   background_color: string | null;
   output_format: OutputFormat;
+  shadow: ShadowStyle;
+  shadow_opacity: number;
 }
