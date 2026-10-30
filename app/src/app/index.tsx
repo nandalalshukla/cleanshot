@@ -106,6 +106,7 @@ function BatchRow({ batch }: { batch: BatchSummary }) {
           </ThemedText>
           <ThemedText variant="caption" muted>
             {done}/{batch.total} done{failed ? ` · ${failed} failed` : ''}
+            {batch.needs_retake ? ` · ${batch.needs_retake} to retake` : ''}
           </ThemedText>
           {batch.status === 'processing' ? <ProgressBar value={batch.progress} /> : null}
           <StatusBadge status={batch.status} />

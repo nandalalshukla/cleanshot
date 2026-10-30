@@ -19,6 +19,7 @@ from . import compose, image_io
 from .framing import Placement, frame_product, mask_bbox
 from .layer import Layer
 from .options import ProcessOptions, RenderSpec
+from .quality import QualityReport, assess
 from .refine import decontaminate_edges, refine_mask
 from .segmentation import Segmenter
 from .shadow import ShadowParams, apply_shadow, make_shadow
@@ -46,7 +47,8 @@ class ProcessResult:
     cutout: Image.Image
     """Product cropped to its bounds on transparency, at source resolution."""
     raw_alpha: np.ndarray
-    """Unrefined mask at input resolution (used by quality checks)."""
+    """Unrefined mask at input resolution."""
+    quality: QualityReport
     timings: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -116,8 +118,16 @@ def process_image(
 ) -> ProcessResult:
     timer = _Timer()
     layer, raw_alpha = prepare_layer(image, options, segmenter, timer)
-    outputs = [render(layer, spec, timer) for spec in options.render_specs()]
+    specs = options.render_specs()
+    outputs = [render(layer, spec, timer) for spec in specs]
+    target_side = max(max(s.width, s.height) * s.fill for s in specs)
+    quality = assess(layer.rgb, raw_alpha, target_side=int(target_side))
+    timer.lap("quality")
     log.debug("processed image in %s", timer.timings)
     return ProcessResult(
-        outputs=outputs, cutout=crop_cutout(layer), raw_alpha=raw_alpha, timings=timer.timings
+        outputs=outputs,
+        cutout=crop_cutout(layer),
+        raw_alpha=raw_alpha,
+        quality=quality,
+        timings=timer.timings,
     )

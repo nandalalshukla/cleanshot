@@ -1,4 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import type { Batch, BatchImage } from '@/api/types';
@@ -9,11 +10,13 @@ import {
   ProgressBar,
   RemoteImage,
   Screen,
+  Segmented,
   StatusBadge,
   ThemedText,
 } from '@/components';
 import { useBatch } from '@/features/batches/queries';
 import { useBatchActions } from '@/features/batches/useBatchActions';
+import { isFlagged, tileStatus } from '@/features/quality/quality';
 import { radius, spacing, useTheme } from '@/theme';
 
 export default function BatchScreen() {
@@ -21,6 +24,7 @@ export default function BatchScreen() {
   const batch = useBatch(id);
   const actions = useBatchActions(id);
   const { colors } = useTheme();
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
 
   if (batch.isError) {
     return (
@@ -110,7 +114,29 @@ export default function BatchScreen() {
         ) : null}
       </Card>
 
-      <PhotoGrid batch={b} />
+      {b.needs_retake || b.warnings ? (
+        <Card style={{ borderColor: b.needs_retake ? colors.danger : colors.warning }}>
+          <ThemedText variant="heading">
+            {b.needs_retake
+              ? `${b.needs_retake} photo${b.needs_retake > 1 ? 's' : ''} should be retaken`
+              : `${b.warnings} photo${b.warnings > 1 ? 's' : ''} worth a look`}
+          </ThemedText>
+          <ThemedText variant="caption" muted>
+            Tap a flagged photo to see what went wrong and retake it — it re-processes
+            automatically.
+          </ThemedText>
+          <Segmented<'all' | 'flagged'>
+            value={flaggedOnly ? 'flagged' : 'all'}
+            onChange={(v) => setFlaggedOnly(v === 'flagged')}
+            options={[
+              { value: 'all', label: `All (${b.total})` },
+              { value: 'flagged', label: `Flagged (${b.needs_retake + b.warnings})` },
+            ]}
+          />
+        </Card>
+      ) : null}
+
+      <PhotoGrid batch={b} images={flaggedOnly ? b.images.filter(isFlagged) : b.images} />
     </Screen>
   );
 }
@@ -123,13 +149,13 @@ function summary(b: Batch): string {
   return parts.join(' · ');
 }
 
-function PhotoGrid({ batch }: { batch: Batch }) {
+function PhotoGrid({ batch, images }: { batch: Batch; images: BatchImage[] }) {
   const { width } = useWindowDimensions();
   const columns = width > 700 ? 4 : 2;
   const size = (Math.min(width, 900) - spacing.lg * 2 - spacing.md * (columns - 1)) / columns;
   return (
     <View style={styles.grid}>
-      {batch.images.map((img) => (
+      {images.map((img) => (
         <PhotoTile key={img.id} batchId={batch.id} image={img} size={size} />
       ))}
     </View>
@@ -159,7 +185,7 @@ function PhotoTile({ batchId, image, size }: { batchId: string; image: BatchImag
         contentFit={image.preview_url ? 'contain' : 'cover'}
       />
       <View style={styles.tileFooter}>
-        <StatusBadge status={image.status} />
+        <StatusBadge status={tileStatus(image)} />
       </View>
     </Pressable>
   );

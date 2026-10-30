@@ -214,3 +214,32 @@ def test_explicit_positions_preserve_client_order(client):
         )
     images = client.get(f"/v1/batches/{batch['id']}", headers=HEADERS).json()["images"]
     assert [i["filename"] for i in images] == ["a.jpg", "b.jpg", "c.jpg"]
+
+
+def test_quality_report_is_exposed_per_image_and_counted(client):
+    batch = create(client, presets=["meesho"])
+    tiny = product_photo(size=(1600, 1200), box=(780, 580, 830, 640))
+    upload(client, batch["id"], product_photo(size=(1600, 1200), box=(400, 250, 1200, 1000)), tiny)
+    client.post(f"/v1/batches/{batch['id']}/start", headers=HEADERS)
+    done = wait_for(client, batch["id"])
+    good, bad = done["images"]
+    assert good["quality"]["verdict"] == "ok"
+    assert bad["quality"]["verdict"] == "retake"
+    assert "product_too_small" in {f["code"] for f in bad["quality"]["flags"]}
+    assert done["needs_retake"] == 1 and done["warnings"] == 0
+
+    report = (
+        zipfile.ZipFile(io.BytesIO(client.get(done["download_url"], headers=HEADERS).content))
+        .read("report.csv")
+        .decode()
+    )
+    assert "product_too_small" in report
+
+
+def test_failed_no_product_carries_retake_verdict(client):
+    batch = create(client)
+    upload(client, batch["id"], Image.new("RGB", (300, 300), (240, 240, 240)))
+    client.post(f"/v1/batches/{batch['id']}/start", headers=HEADERS)
+    img = wait_for(client, batch["id"])["images"][0]
+    assert img["status"] == "failed"
+    assert img["quality"]["verdict"] == "retake"

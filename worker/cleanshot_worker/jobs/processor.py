@@ -12,6 +12,7 @@ from PIL import Image
 from ..pipeline import image_io
 from ..pipeline.options import ProcessOptions
 from ..pipeline.process import NoProductFoundError, process_image
+from ..pipeline.quality import QualityReport, Verdict, no_product_flag
 from ..pipeline.registry import SegmenterRegistry
 from .files import BatchFiles
 from .models import ImageStatus, OutputFile
@@ -79,10 +80,15 @@ class ImageProcessor:
                 status=ImageStatus.DONE,
                 error=None,
                 outputs=outputs,
+                quality=result.quality.to_dict(),
                 timings=result.timings,
             )
         except NoProductFoundError as exc:
-            self._fail(image_id, f"{exc}. Try a photo with the product clearly in frame.")
+            self._fail(
+                image_id,
+                f"{exc}. Try a photo with the product clearly in frame.",
+                quality=QualityReport(Verdict.RETAKE, 0, [no_product_flag()]).to_dict(),
+            )
         except image_io.InvalidImageError as exc:
             self._fail(image_id, str(exc))
         except Exception:
@@ -93,5 +99,5 @@ class ImageProcessor:
             with contextlib.suppress(NotFoundError):  # batch deleted mid-flight
                 self.store.refresh_batch_status(batch.id)
 
-    def _fail(self, image_id: str, message: str) -> None:
-        self.store.update_image(image_id, status=ImageStatus.FAILED, error=message)
+    def _fail(self, image_id: str, message: str, quality: dict | None = None) -> None:
+        self.store.update_image(image_id, status=ImageStatus.FAILED, error=message, quality=quality)

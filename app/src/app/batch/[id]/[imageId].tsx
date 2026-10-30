@@ -13,6 +13,7 @@ import {
 } from '@/components';
 import { useBatch } from '@/features/batches/queries';
 import { useBatchActions } from '@/features/batches/useBatchActions';
+import { QualityPanel } from '@/features/quality/QualityPanel';
 import { pickFromLibrary, takePhoto, type PickedPhoto } from '@/features/photos/pickPhotos';
 import { presetLabel } from '@/lib/format';
 import { radius, spacing, useTheme } from '@/theme';
@@ -88,6 +89,8 @@ export default function PhotoScreen() {
         {image.error ? <ThemedText color={colors.danger}>{image.error}</ThemedText> : null}
         {busy ? <ThemedText muted>Processing — this updates automatically.</ThemedText> : null}
       </Card>
+
+      {image.quality ? <QualityPanel report={image.quality} /> : null}
 
       {isDone && image.outputs.length ? (
         <Card>

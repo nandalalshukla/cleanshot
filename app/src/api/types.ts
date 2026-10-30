@@ -57,6 +57,22 @@ export interface ProcessOptions {
   shadow_opacity: number;
 }
 
+export type QualityVerdict = 'ok' | 'warning' | 'retake';
+
+export interface QualityFlag {
+  code: string;
+  severity: 'warning' | 'retake';
+  message: string;
+}
+
+export interface QualityReport {
+  verdict: QualityVerdict;
+  /** 0–100; 100 means no issues found. */
+  score: number;
+  flags: QualityFlag[];
+  metrics: Record<string, number>;
+}
+
 export type BatchStatus = 'draft' | 'processing' | 'completed' | 'cancelled';
 export type ImageStatus = 'uploaded' | 'queued' | 'processing' | 'done' | 'failed' | 'cancelled';
 
@@ -78,7 +94,7 @@ export interface BatchImage {
   height: number;
   attempts: number;
   outputs: OutputFile[];
-  quality: Record<string, unknown> | null;
+  quality: QualityReport | null;
   timings: Record<string, number>;
   original_url: string;
   preview_url: string | null;
@@ -94,6 +110,10 @@ export interface BatchSummary {
   total: number;
   counts: Record<ImageStatus, number>;
   progress: number;
+  /** Photos the quality check says should be retaken. */
+  needs_retake: number;
+  /** Photos with quality warnings worth a look. */
+  warnings: number;
   cover_url: string | null;
   download_url: string;
 }

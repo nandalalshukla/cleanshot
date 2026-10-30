@@ -5,7 +5,7 @@ import { radius, spacing, useTheme, type ThemeColors } from '@/theme';
 
 import { ThemedText } from './ThemedText';
 
-type Status = ImageStatus | BatchStatus | 'flagged';
+type Status = ImageStatus | BatchStatus | 'flagged' | 'retake';
 
 const LABELS: Record<Status, string> = {
   draft: 'Draft',
@@ -17,6 +17,7 @@ const LABELS: Record<Status, string> = {
   failed: 'Failed',
   cancelled: 'Cancelled',
   flagged: 'Check photo',
+  retake: 'Retake',
 };
 
 function tone(status: Status, c: ThemeColors): string {
@@ -25,6 +26,7 @@ function tone(status: Status, c: ThemeColors): string {
     case 'completed':
       return c.success;
     case 'failed':
+    case 'retake':
       return c.danger;
     case 'flagged':
       return c.warning;

@@ -116,6 +116,8 @@ class BatchSummary(BaseModel):
     total: int
     counts: dict[str, int]
     progress: float = Field(description="Finished images / total, 0..1")
+    needs_retake: int = Field(description="Images whose quality check says retake")
+    warnings: int = Field(description="Images with quality warnings worth a look")
     cover_url: str | None
     download_url: str
 
@@ -124,6 +126,7 @@ class BatchSummary(BaseModel):
         counts = batch.counts()
         total = len(batch.images)
         finished = sum(1 for i in batch.images if i.status.finished)
+        verdicts = [(i.quality or {}).get("verdict") for i in batch.images]
         cover = next((i for i in batch.images if i.status is ImageStatus.DONE), None)
         if cover:
             cover_url = f"/v1/batches/{batch.id}/images/{cover.id}/preview"
@@ -140,6 +143,8 @@ class BatchSummary(BaseModel):
             total=total,
             counts=counts,
             progress=round(finished / total, 4) if total else 0.0,
+            needs_retake=verdicts.count("retake"),
+            warnings=verdicts.count("warning"),
             cover_url=cover_url,
             download_url=f"/v1/batches/{batch.id}/download",
         )
